@@ -7,7 +7,6 @@ Permite hacer preguntas en lenguaje natural sobre un archivo CSV utilizando:
 - Mistral AI
 - Pandas
 - RAG (Retrieval-Augmented Generation)
-- FAISS
 
 ---
 
@@ -15,22 +14,18 @@ Permite hacer preguntas en lenguaje natural sobre un archivo CSV utilizando:
 
 ✅ Cargar archivos CSV  
 ✅ Limpiar y normalizar datos  
-✅ Detectar duplicados con fuzzy matching  
 ✅ Crear métricas automáticamente  
 ✅ Usar búsqueda semántica con RAG  
 ✅ Responder preguntas sobre ventas en español  
 
 ---
 
-# 🧠 Tecnologías usadas
+# Tecnologías usadas
 
 - Python
 - Pandas
 - LangChain
 - Mistral AI
-- FAISS
-- Sentence Transformers
-- TheFuzz
 - Google Colab
 
 ---
@@ -87,18 +82,6 @@ Calcula el top 5 de clientes por ventas
 ```text
 ¿Cuál es el promedio de ventas?
 ```
-
----
-
-#  ¿Qué hace el RAG?
-
-El sistema RAG:
-
-1. Convierte datos en documentos
-2. Genera embeddings
-3. Guarda vectores en FAISS
-4. Busca información relevante
-5. Mejora las respuestas del modelo
 
 ---
 
