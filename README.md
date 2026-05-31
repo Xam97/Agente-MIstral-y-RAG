@@ -1,4 +1,4 @@
-# 📊 Sales Bot con LangChain + Mistral + RAG
+# Sales Bot con LangChain + Mistral + RAG
 
 Este proyecto es un bot inteligente para analizar datos de ventas usando IA.  
 Permite hacer preguntas en lenguaje natural sobre un archivo CSV utilizando:
@@ -11,7 +11,7 @@ Permite hacer preguntas en lenguaje natural sobre un archivo CSV utilizando:
 
 ---
 
-# 🚀 Funciones principales
+# Funciones principales
 
 ✅ Cargar archivos CSV  
 ✅ Limpiar y normalizar datos  
@@ -35,7 +35,7 @@ Permite hacer preguntas en lenguaje natural sobre un archivo CSV utilizando:
 
 ---
 
-# 📦 Instalación
+# Instalación
 
 ```bash
 pip install langchain langchain-community langchain-experimental \
@@ -45,7 +45,7 @@ mistralai faiss-cpu sentence-transformers
 
 ---
 
-# 🔑 Configuración API Key
+# Configuración API Key
 
 El sistema usa una API Key de Mistral AI.
 
@@ -68,7 +68,7 @@ MISTRAL_API_KEY = input("Pegá tu API KEY: ")
 
 ---
 
-# ▶️ Cómo usar
+# Cómo usar
 
 1. Ejecutar todas las celdas del notebook
 2. Subir un archivo CSV
@@ -90,7 +90,7 @@ Calcula el top 5 de clientes por ventas
 
 ---
 
-# 🔍 ¿Qué hace el RAG?
+#  ¿Qué hace el RAG?
 
 El sistema RAG:
 
@@ -102,7 +102,7 @@ El sistema RAG:
 
 ---
 
-# 📊 Comandos disponibles
+#  Comandos disponibles
 
 | Comando | Función |
 |---|---|
@@ -114,7 +114,7 @@ El sistema RAG:
 
 ---
 
-# 📁 Estructura del proyecto
+#  Estructura del proyecto
 
 ```text
 Agente.ipynb
@@ -122,7 +122,7 @@ Agente.ipynb
 
 ---
 
-# ⚠️ Recomendaciones
+#  Recomendaciones
 
 - Usar datasets menores a 5000 filas para activar RAG
 - Tener conexión a internet
@@ -130,6 +130,4 @@ Agente.ipynb
 
 ---
 
-# 👨‍💻 Autor
 
-Proyecto académico desarrollado con Python, LangChain y Mistral AI.
