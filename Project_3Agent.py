@@ -351,3 +351,62 @@ print(f"   → [OK] Parquet Engine: steam_games_procesado.parquet")
 print(f"   → [OK] CSV Engine: steam_games_procesado.csv")
 print(f"   → [OK] Log Audit: steam_games_procesado_bitacora.json")
 
+"""# FASE 6: VISUALIZANDO LOS RESULTADOS"""
+
+print("\n" + "═" * 70)
+print("CONFIGURANDO DASHBOARD ESTÁTICO DE CONTROL")
+print("═" * 70 + "\n")
+
+# Ajuste automático del tema visual seguro para Colab
+plt.style.use('seaborn-v0_8-darkgrid')
+
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 11))
+fig.suptitle('DASHBOARD ANALÍTICO DE JUEGOS - STEAM DATASET', fontsize=16, fontweight='bold', color='#1b2838')
+
+# Gráfico 1: Histograma de precios corregido
+precios_filtrados = datos_limpios[datos_limpios['precio_limpio'] < 100]['precio_limpio'].dropna()
+ax1.hist(precios_filtrados, bins=40, edgecolor='#121a24', alpha=0.8, color='#107c11')
+ax1.set_title('Distribución de Precios Base (< $100)', fontsize=12, fontweight='bold')
+ax1.set_xlabel('Precio de venta original (USD)')
+ax1.set_ylabel('Cantidad de Títulos')
+ax1.axvline(precios_filtrados.median(), color='#e81123', linestyle='--', linewidth=2, label=f'Mediana: ${precios_filtrados.median():.2f}')
+ax1.legend()
+
+# Gráfico 2: Distribución de la métrica objetivo ponderada
+if 'puntaje_normalizado' in datos_limpios.columns:
+    ax2.hist(datos_limpios['puntaje_normalizado'].dropna(), bins=30, edgecolor='#121a24', alpha=0.8, color='#0078d4')
+    ax2.set_title('Distribución de Puntaje Objetivo Ponderado', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Score Normalizado Ponderado por Volumen (0-100)')
+    ax2.set_ylabel('Frecuencia de Juegos')
+
+# Gráfico 3: Línea de lanzamientos anuales históricos (Filtrado temporal desde 1995)
+conteo_anual = datos_limpios['año_lanzamiento'].value_counts().sort_index()
+conteo_anual_filtrado = conteo_anual[conteo_anual.index >= 1995]
+ax3.bar(conteo_anual_filtrado.index, conteo_anual_filtrado.values, alpha=0.8, color='#ff8c00', edgecolor='#121a24')
+ax3.set_title('Evolución de Lanzamientos por Año', fontsize=12, fontweight='bold')
+ax3.set_xlabel('Año del Lanzamiento Oficial')
+ax3.set_ylabel('Volumen de Juegos Publicados')
+ax3.set_xticks(conteo_anual_filtrado.index[::2]) # Mostrar marcas de año cada dos posiciones para evitar encimamiento
+ax3.tick_params(axis='x', rotation=45)
+
+# Gráfico 4: Análisis de Frecuencia de los 10 Géneros Dominantes
+if 'genre_list' in datos_limpios.columns:
+    todos_los_generos = []
+    for lista in datos_limpios['genre_list'].dropna():
+        todos_los_generos.extend(lista)
+
+    top_generos = dict(Counter(todos_los_generos).most_common(10))
+    g_colores = plt.cm.Blues(np.linspace(0.4, 0.9, 10))
+    ax4.barh(list(top_generos.keys()), list(top_generos.values()), color=g_colores, edgecolor='#121a24')
+    ax4.set_title('🎮 Top 10 Géneros más Concurrentes', fontsize=12, fontweight='bold')
+    ax4.set_xlabel('Presencia Total en Juegos')
+    ax4.invert_yaxis()
+
+plt.tight_layout()
+plt.savefig(RUTA_BASE + 'dashboard_steam.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+print(f"Dashboard gráfico guardado correctamente en: {RUTA_BASE}dashboard_steam.png")
+print("\n" + "═" * 70)
+print("¡TODO EL PROCESO FINALIZÓ EXITOSAMENTE!")
+print("═" * 70 + "\n")
