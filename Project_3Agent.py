@@ -297,3 +297,38 @@ class DataCleaningAgent:
             json.dump(self.bitacora, f, indent=2)
         return self
 
+"""# FASE 4: EJECUTANDO EL PROCESAMIENTO"""
+
+print("═" * 70)
+print("🏭 PROCESANDO Y PULIENDO LOS DATOS CON EL PIPELINE")
+print("═" * 70 + "\n")
+
+# Instancia del agente con correcciones integradas
+agente_limpiador = DataCleaningAgent(raw_dataframe)
+
+# Ejecución secuencial fluida del Pipeline
+agente_limpiador \
+    .estandarizar_precios() \
+    .procesar_resenas() \
+    .procesar_fechas() \
+    .procesar_listas('genre') \
+    .procesar_listas('popular_tags') \
+    .procesar_listas('languages') \
+    .rellenar_vacios() \
+    .preparar_objetivo()
+
+# Extracción de variables limpias finales
+datos_limpios, historial = agente_limpiador.obtener_resultado()
+
+print("\n" + "═" * 70)
+print("PROCESAMIENTO FINALIZADO")
+print("═" * 70)
+print(f"\nResumen del dataset procesado:")
+print(f"   → Registros únicos de juegos: {len(datos_limpios):,}")
+print(f"   → Atributos/Features finales: {len(datos_limpios.columns)}")
+print(f"   → Operaciones del agente registradas: {len(historial)}")
+print(f"   → Consumo de memoria ram: {datos_limpios.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+
+print("\nMuestra del resultado final:")
+display(datos_limpios.head())
+
