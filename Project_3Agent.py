@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+"""
 
 # FASE 0: PREPARACIÓN DEL ENTORNO
 """
