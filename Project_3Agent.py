@@ -44,3 +44,32 @@ print(f"Columnas disponibles: {', '.join(raw_dataframe.columns[:5])}...")
 print("\nVista previa:")
 display(raw_dataframe.head())
 
+"""# FASE 2: DIAGNÓSTICO DEL PACIENTE (EDA)"""
+
+print("\n" + "═" * 70)
+print("DIAGNOSTICANDO LA SALUD DE LOS DATOS")
+print("═" * 70 + "\n")
+
+def diagnosticar_dataset(df):
+    """Realiza un chequeo completo del estado del dataset"""
+    print("1. TIPOS DE DATOS")
+    print(f"   → {dict(df.dtypes.value_counts())}\n")
+
+    print("2. VALORES AUSENTES (Top 5)")
+    nulos = df.isnull().sum()
+    nulos_pct = (nulos / len(df)) * 100
+    reporte = pd.DataFrame({'Ausentes': nulos, '%': nulos_pct})
+    print(reporte[reporte['Ausentes'] > 0].sort_values('Ausentes', ascending=False).head(5).to_string())
+
+    print("\n3. ESTADÍSTICAS DE COLUMNAS NUMÉRICAS")
+    print(df.describe().to_string())
+
+    print("\n4. MUESTRAS DE CAMPOS CRÍTICOS")
+    campos_especiales = ['original_price', 'recent_reviews', 'release_date', 'genre']
+    for campo in campos_especiales:
+        if campo in df.columns:
+            print(f"\n   → {campo}:")
+            print(f"      {df[campo].dropna().head(3).tolist()}")
+
+diagnorstico = diagnosticar_dataset(raw_dataframe)
+
