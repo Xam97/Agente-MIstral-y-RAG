@@ -73,3 +73,227 @@ def diagnosticar_dataset(df):
 
 diagnorstico = diagnosticar_dataset(raw_dataframe)
 
+"""# FASE 3: AGENTE LIMPIADOR (Clase principal)"""
+
+print("\n" + "═" * 70)
+print("ACTIVANDO AL AGENTE LIMPIADOR REFINADO")
+print("═" * 70 + "\n")
+
+class DataCleaningAgent:
+    """
+    🧹 AGENTE DE LIMPIEZA ESPECIALIZADO EN DATOS DE STEAM
+    - Resuelve conflictos bilingües en fechas (Español / Inglés).
+    - Limpia strings monetarios complejos con símbolos de divisa ($).
+    - Extrae métricas cuantitativas y cualitativas de reseñas.
+    - Prepara estructuras para analítica avanzada y ML.
+    """
+
+    def __init__(self, dataframe):
+        self.datos_originales = dataframe.copy()
+        self.datos_procesados = dataframe.copy()
+        self.bitacora = []
+
+    def registrar(self, mensaje):
+        """Registra cada acción en la bitácora"""
+        momento = datetime.now().strftime("%H:%M:%S")
+        entrada = f"[{momento}] {mensaje}"
+        self.bitacora.append(entrada)
+        print(f"   ✓ {mensaje}")
+
+    def estandarizar_precios(self):
+        """Convierte precios de texto a números flotantes manejando símbolos de moneda"""
+        self.registrar("Normalizando precios y removiendo símbolos ($)...")
+
+        def extraer_valor_monetario(valor):
+            if pd.isna(valor):
+                return np.nan
+
+            texto = str(valor).lower().strip()
+
+            # Detectando juegos gratuitos de forma expandida
+            if any(palabra in texto for palabra in ['free', 'gratis', 'demo', 'free to play']):
+                return 0.0
+
+            # CORRECCIÓN: Limpieza de caracteres de moneda comunes para evitar fallas en la regex
+            texto = texto.replace('$', '').replace('€', '').strip()
+
+            # Extrayendo el número
+            coincidencia = re.search(r'(\d+[\.,]\d{2})|(\d+)', texto)
+            if coincidencia:
+                numero = coincidencia.group(0).replace(',', '.')
+                try:
+                    return float(numero)
+                except ValueError:
+                    return np.nan
+            return np.nan
+
+        self.datos_procesados['precio_limpio'] = self.datos_procesados['original_price'].apply(extraer_valor_monetario)
+
+        if 'discount_price' in self.datos_procesados.columns:
+            self.datos_procesados['descuento_limpio'] = self.datos_procesados['discount_price'].apply(extraer_valor_monetario)
+            # Asegurar que el descuento vacío herede el precio base original limpio
+            self.datos_procesados['descuento_limpio'] = self.datos_procesados['descuento_limpio'].fillna(self.datos_procesados['precio_limpio'])
+
+            # Calculando porcentaje de ahorro real
+            mascara = (self.datos_procesados['descuento_limpio'] < self.datos_procesados['precio_limpio']) & (self.datos_procesados['precio_limpio'] > 0)
+            self.datos_procesados['porcentaje_descuento'] = np.where(
+                mascara,
+                100 * (1 - self.datos_procesados['descuento_limpio'] / self.datos_procesados['precio_limpio']),
+                0
+            )
+        return self
+
+    def procesar_resenas(self):
+        """Extrae métricas de reseñas en columnas separadas limpiando strings estructurados"""
+        self.registrar("Extrayendo métricas cuantitativas y cualitativas de reseñas...")
+
+        def analizar_resena(texto):
+            if pd.isna(texto):
+                return {'sentimiento': 'Sin reseñas', 'cantidad': 0, 'porcentaje': 0}
+
+            texto = str(texto).strip()
+
+            # Captura del sentimiento ignorando guiones o comas iniciales
+            sentimiento_match = re.match(r'^([^,\-]+)', texto)
+            sentimiento = sentimiento_match.group(1).strip() if sentimiento_match else 'Desconocido'
+
+            # Extracción del volumen total de reviews
+            cantidad_match = re.search(r'\(([\d,]+)\)', texto)
+            cantidad = int(cantidad_match.group(1).replace(',', '')) if cantidad_match else 0
+
+            # Extracción de la tasa de aprobación porcentual
+            porcentaje_match = re.search(r'(\d+)%', texto)
+            porcentaje = float(porcentaje_match.group(1)) if porcentaje_match else 0
+
+            return {'sentimiento': sentimiento, 'cantidad': cantidad, 'porcentaje': porcentaje}
+
+        for columna in ['recent_reviews', 'all_reviews']:
+            if columna in self.datos_procesados.columns:
+                datos_analizados = self.datos_procesados[columna].apply(analizar_resena)
+                self.datos_procesados[f'{columna}_sentimiento'] = datos_analizados.apply(lambda x: x['sentimiento'])
+                self.datos_procesados[f'{columna}_cantidad'] = datos_analizados.apply(lambda x: x['cantidad'])
+                self.datos_procesados[f'{columna}_porcentaje'] = datos_analizados.apply(lambda x: x['porcentaje'])
+        return self
+
+    def procesar_fechas(self):
+        """Convierte fechas resolviendo la inconsistencia bilingüe de meses"""
+        self.registrar("Estandarizando fechas bilingües (ES / EN)...")
+
+        def limpiar_fecha_texto(txt):
+            if pd.isna(txt):
+                return np.nan
+            txt = str(txt).lower().strip()
+
+            # Diccionario para mapear abreviaciones en español al estándar internacional legible por pandas
+            mapeo_meses = {
+                'ene.': 'Jan', 'feb.': 'Feb', 'mar.': 'Mar', 'abr.': 'Apr',
+                'may.': 'May', 'jun.': 'Jun', 'jul.': 'Jul', 'ago.': 'Aug',
+                'sep.': 'Sep', 'oct.': 'Oct', 'nov.': 'Nov', 'dic.': 'Dec'
+            }
+            for esp, ing in mapeo_meses.items():
+                txt = txt.replace(esp, ing)
+            return txt
+
+        fechas_traducidas = self.datos_procesados['release_date'].apply(limpiar_fecha_texto)
+
+        self.datos_procesados['fecha_lanzamiento'] = pd.to_datetime(
+            fechas_traducidas,
+            format='mixed',
+            errors='coerce'
+        )
+
+        # Extracción de features temporales útiles para Machine Learning
+        self.datos_procesados['año_lanzamiento'] = self.datos_procesados['fecha_lanzamiento'].dt.year
+        self.datos_procesados['mes_lanzamiento'] = self.datos_procesados['fecha_lanzamiento'].dt.month
+        self.datos_procesados['trimestre'] = self.datos_procesados['fecha_lanzamiento'].dt.quarter
+        self.datos_procesados['dia_semana'] = self.datos_procesados['fecha_lanzamiento'].dt.dayofweek
+        self.datos_procesados['lanzamiento_fin_semana'] = (self.datos_procesados['dia_semana'] >= 5).astype(float)
+        self.datos_procesados['juego_clasico'] = (self.datos_procesados['año_lanzamiento'] < 2010).astype(float)
+        return self
+
+    def procesar_listas(self, nombre_columna):
+        """Convierte strings estructurados de listas en arrays reales de Python"""
+        if nombre_columna not in self.datos_procesados.columns:
+            return self
+
+        self.registrar(f"Parseando columna de lista: {nombre_columna}")
+
+        def convertir_lista(valor):
+            if pd.isna(valor):
+                return []
+            texto = str(valor).strip()
+            if texto.startswith('[') and texto.endswith(']'):
+                try:
+                    return json.loads(texto.replace("'", '"'))
+                except:
+                    return [x.strip().replace("'", "").replace('"', '') for x in texto[1:-1].split(',')]
+            else:
+                return [x.strip() for x in texto.split(',') if x.strip()]
+
+        self.datos_procesados[f'{nombre_columna}_lista'] = self.datos_procesados[nombre_columna].apply(convertir_lista)
+        self.datos_procesados[f'{nombre_columna}_cantidad'] = self.datos_procesados[f'{nombre_columna}_lista'].apply(len)
+        return self
+
+    def rellenar_vacios(self):
+        """Imputa valores faltantes basándose en el tipo de columna de forma segura"""
+        self.registrar("Imputando valores ausentes...")
+
+        # Columnas de texto categórico
+        texto_cols = ['developer', 'publisher', 'recent_reviews_sentimiento', 'all_reviews_sentimiento']
+        for col in texto_cols:
+            if col in self.datos_procesados.columns:
+                self.datos_procesados[col] = self.datos_procesados[col].fillna('Desconocido')
+
+        # Descripciones largas
+        desc_cols = ['desc_snippet', 'about_the_game']
+        for col in desc_cols:
+            if col in self.datos_procesados.columns:
+                self.datos_procesados[col] = self.datos_procesados[col].fillna('')
+
+        # Columnas numéricas (usando mediana para evitar distorsiones por outliers)
+        numericas = self.datos_procesados.select_dtypes(include=[np.number]).columns
+        for col in numericas:
+            if self.datos_procesados[col].isnull().any():
+                mediana = self.datos_procesados[col].median()
+                self.datos_procesados[col] = self.datos_procesados[col].fillna(mediana if not pd.isna(mediana) else 0)
+        return self
+
+    def preparar_objetivo(self):
+        """Genera una métrica logarítmica ponderada estable para predecir (Score)"""
+        self.registrar("Construyendo variable objetivo ponderada...")
+
+        if 'all_reviews_porcentaje' in self.datos_procesados.columns and 'all_reviews_cantidad' in self.datos_procesados.columns:
+            pct = self.datos_procesados['all_reviews_porcentaje'].fillna(0)
+            cnt = self.datos_procesados['all_reviews_cantidad'].fillna(0)
+
+            # Castigo logarítmico para juegos con poquísimos votos
+            self.datos_procesados['puntaje_juego'] = pct * np.log1p(cnt)
+            max_score = self.datos_procesados['puntaje_juego'].max()
+
+            if max_score > 0:
+                self.datos_procesados['puntaje_normalizado'] = 100 * self.datos_procesados['puntaje_juego'] / max_score
+            else:
+                self.datos_procesados['puntaje_normalizado'] = 0
+        return self
+
+    def obtener_resultado(self):
+        """Retorna el DataFrame limpio junto al log de auditoría"""
+        return self.datos_procesados, self.bitacora
+
+    def archivar_datos(self, ruta):
+        """Exporta el dataset serializando listas internas para compatibilidad completa"""
+        df_para_guardar = self.datos_procesados.copy()
+        for col in df_para_guardar.columns:
+            if col.endswith('_lista'):
+                df_para_guardar[col] = df_para_guardar[col].apply(json.dumps)
+
+        # Guardar en Parquet (Optimizado)
+        df_para_guardar.to_parquet(ruta, index=False)
+        self.registrar(f"Datos guardados exitosamente en Parquet: {ruta}")
+
+        # Guardar logs en JSON
+        log_path = ruta.replace('.parquet', '_bitacora.json')
+        with open(log_path, 'w') as f:
+            json.dump(self.bitacora, f, indent=2)
+        return self
+
