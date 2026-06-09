@@ -332,3 +332,22 @@ print(f"   → Consumo de memoria ram: {datos_limpios.memory_usage(deep=True).su
 print("\nMuestra del resultado final:")
 display(datos_limpios.head())
 
+"""# FASE 5: RESPALDANDO EL RESULTADO"""
+
+print("\n" + "═" * 70)
+print("RESPALDANDO DATOS EN GOOGLE DRIVE")
+print("═" * 70 + "\n")
+
+RUTA_BASE = '/content/drive/MyDrive/steam_agents_project/'
+archivo_final_parquet = RUTA_BASE + 'steam_games_procesado.parquet'
+archivo_final_csv = RUTA_BASE + 'steam_games_procesado.csv'
+
+# Guardar logs y dataframes procesados
+agente_limpiador.archivar_datos(archivo_final_parquet)
+datos_limpios.to_csv(archivo_final_csv, index=False)
+
+print(f"\nDirectorio de guardado: {RUTA_BASE}")
+print(f"   → [OK] Parquet Engine: steam_games_procesado.parquet")
+print(f"   → [OK] CSV Engine: steam_games_procesado.csv")
+print(f"   → [OK] Log Audit: steam_games_procesado_bitacora.json")
+
