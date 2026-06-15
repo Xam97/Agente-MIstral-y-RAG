@@ -314,3 +314,229 @@ class AgenteComparador:
 # Ejecutar Agente 2
 agente2 = AgenteComparador(X_train, X_test, y_train, y_test, X_train_pad, X_test_pad)
 mejor_modelo, mejores_metricas = agente2.comparar_y_seleccionar()
+
+"""BLOQUE 8: CREAR CORPUS PARA RAG"""
+
+print("\n" + "="*50)
+print("📚 CREANDO CORPUS PARA RAG")
+print("="*50)
+
+# Crear corpus
+corpus = []
+for i, row in dataset_limpio.head(N_CORPUS_RAG).iterrows():
+    documento = f"Puntuación: {row['Score']} | Sentimiento: {'POSITIVO' if row['Sentiment']==1 else 'NEGATIVO'} | Reseña: {row['CleanedReview'][:300]}"
+    corpus.append(documento)
+
+# Cargar modelo de embeddings
+modelo_embeddings = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Generar embeddings
+embeddings_list = []
+for doc in corpus:
+    emb = modelo_embeddings.encode(doc)
+    embeddings_list.append(emb.tolist())
+
+# Configurar ChromaDB
+client = chromadb.Client()
+try:
+    client.delete_collection("amazon_reviews_rag")
+except:
+    pass
+
+collection = client.create_collection(name="amazon_reviews_rag")
+
+for i, (doc, emb) in enumerate(zip(corpus, embeddings_list)):
+    collection.add(documents=[doc], embeddings=[emb], ids=[str(i)])
+
+# Crear función de recuperación
+def recuperar_contexto(pregunta, k=3):
+    pregunta_emb = modelo_embeddings.encode(pregunta)
+    resultados = collection.query(query_embeddings=[pregunta_emb.tolist()], n_results=k)
+    return resultados['documents'][0]
+
+print(f"✅ Corpus: {len(corpus)} documentos")
+print(f"✅ Embeddings: {len(embeddings_list)} vectores")
+print(f"✅ ChromaDB: {collection.count()} documentos almacenados")
+
+"""BLOQUE 9: CONFIGURAR MISTRAL"""
+
+MISTRAL_API_KEY = userdata.get("MISTRAL_API_KEY")
+
+if not MISTRAL_API_KEY:
+    raise ValueError("❌ No se encontró MISTRAL_API_KEY")
+
+llm = ChatMistralAI(
+    api_key=MISTRAL_API_KEY,
+    model="mistral-small-latest",
+    temperature=0.3
+)
+
+print("✅ Mistral configurado")
+
+"""BLOQUE 10: AGENTE 3 - COMUNICADOR (RAG + MISTRAL)"""
+
+class AgenteComunicador:
+    def __init__(self, recuperar_func, llm, metricas, dataset, nombre_modelo):
+        self.recuperar_contexto = recuperar_func
+        self.llm = llm
+        self.metricas = metricas
+        self.dataset = dataset
+        self.nombre_modelo = nombre_modelo
+
+    def responder_pregunta(self, pregunta):
+        pregunta_lower = pregunta.lower()
+
+        # Estadísticas del dataset
+        if "cuantas" in pregunta_lower or "cuántas" in pregunta_lower:
+            total = len(self.dataset)
+            positivos = len(self.dataset[self.dataset["Sentiment"] == 1])
+            negativos = len(self.dataset[self.dataset["Sentiment"] == 0])
+            return f"El dataset contiene {total} reseñas. {positivos} son positivas y {negativos} son negativas."
+
+        # Métricas del mejor modelo
+        if "accuracy" in pregunta_lower or "f1" in pregunta_lower:
+            return f"Mejor modelo: {self.nombre_modelo} | Accuracy={self.metricas['accuracy']:.4f} | F1={self.metricas['f1']:.4f}"
+
+        # RAG
+        contexto = self.recuperar_contexto(pregunta)
+        texto_contexto = "\n\n".join(contexto)
+
+        prompt = f"""Eres un asistente. Usa SOLO el contexto. Responde en español de forma breve.
+
+Pregunta: {pregunta}
+Contexto: {texto_contexto}
+Respuesta:"""
+
+        respuesta = self.llm.invoke(prompt)
+        return respuesta.content
+
+    def generar_reporte(self):
+        total = len(self.dataset)
+        positivos = len(self.dataset[self.dataset["Sentiment"] == 1])
+        negativos = len(self.dataset[self.dataset["Sentiment"] == 0])
+
+        return f"""
+========================================
+REPORTE FINAL DEL PROYECTO
+========================================
+
+1. DATASET
+   - Total de reseñas: {total}
+   - Reseñas positivas: {positivos}
+   - Reseñas negativas: {negativos}
+   - Dataset balanceado
+
+2. MEJOR MODELO SELECCIONADO
+   - Modelo: {self.nombre_modelo}
+   - Accuracy: {self.metricas['accuracy']:.4f}
+   - Precision: {self.metricas['precision']:.4f}
+   - Recall: {self.metricas['recall']:.4f}
+   - F1-Score: {self.metricas['f1']:.4f}
+
+3. AGENTES IMPLEMENTADOS
+   - Agente 1: Normalización de datos
+   - Agente 2: Comparación de 3 modelos (RL, LSTM, DistilBERT)
+   - Agente 3: Comunicador con RAG y Mistral
+"""
+
+# Ejecutar Agente 3
+agente3 = AgenteComunicador(recuperar_contexto, llm, mejores_metricas, dataset_limpio, mejor_modelo)
+
+"""BLOQUE 11: EJECUCIÓN FINAL
+
+"""
+
+# Cargar el clasificador DistilBERT para uso interactivo
+print("\n" + "="*50)
+print("🎯 EJECUCIÓN FINAL DEL SISTEMA")
+print("="*50)
+
+# Generar y mostrar reporte final
+print("\n📋 REPORTE FINAL:")
+print(agente3.generar_reporte())
+
+# Cargar clasificador de sentimientos (DistilBERT)
+print("\n🔄 Cargando clasificador de sentimientos DistilBERT...")
+from transformers import pipeline
+clasificador_sentimientos = pipeline(
+    "sentiment-analysis",
+    model="distilbert-base-uncased-finetuned-sst-2-english"
+)
+print("✅ Clasificador de sentimientos listo")
+
+# Menú interactivo
+print("\n" + "="*50)
+print("💬 SISTEMA COMPLETO: RAG + CLASIFICADOR + MISTRAL")
+print("="*50)
+
+while True:
+    print("\n" + "-"*50)
+    print("OPCIONES:")
+    print("1. 🔍 Hacer una pregunta sobre el dataset (RAG + Mistral)")
+    print("2. 😊 Clasificar sentimiento de una reseña (DistilBERT)")
+    print("3. 📝 Ver preguntas de ejemplo")
+    print("4. ❌ Salir")
+    print("-"*50)
+
+    opcion = input("\nSelecciona una opción (1, 2, 3 o 4): ")
+
+    if opcion == "1":
+        pregunta = input("\n🔍 Escribe tu pregunta sobre el dataset: ")
+        print("\n🤔 Procesando tu pregunta con RAG + Mistral...")
+        respuesta = agente3.responder_pregunta(pregunta)
+        print(f"\n💡 RESPUESTA: {respuesta}")
+
+    elif opcion == "2":
+        print("\n😊 CLASIFICADOR DE SENTIMIENTOS (DistilBERT)")
+        print("   El clasificador analizará tu texto y dirá si es POSITIVO o NEGATIVO.")
+        print("   Ejemplos: 'I love this product' → POSITIVO")
+        print("             'This is terrible' → NEGATIVO")
+
+        texto = input("\n📝 Ingresa una reseña en inglés para clasificar: ")
+
+        if texto.strip():
+            print("\n🔄 Analizando sentimiento...")
+            try:
+                resultado = clasificador_sentimientos(texto[:512])[0]
+                sentimiento = resultado["label"]
+                confianza = resultado["score"] * 100
+
+                print("\n" + "="*40)
+                print("📊 RESULTADO DEL CLASIFICADOR:")
+                print(f"   Texto: {texto[:100]}...")
+                print(f"   Sentimiento: {sentimiento}")
+                print(f"   Confianza: {confianza:.2f}%")
+
+                # Emoji según resultado
+                if sentimiento == "POSITIVE":
+                    print("   👍 La reseña es POSITIVA")
+                else:
+                    print("   👎 La reseña es NEGATIVA")
+                print("="*40)
+            except Exception as e:
+                print(f"❌ Error al clasificar: {e}")
+        else:
+            print("❌ No ingresaste ningún texto.")
+
+    elif opcion == "3":
+        print("\n📝 PREGUNTAS DE EJEMPLO para RAG:")
+        print("   - ¿Cuántas reseñas hay en el dataset?")
+        print("   - ¿Cuál es el accuracy del mejor modelo?")
+        print("   - ¿Qué dicen los clientes sobre la calidad del producto?")
+        print("   - ¿Qué opinan los clientes del sabor?")
+        print("   - ¿Cuál es el F1-Score del modelo seleccionado?")
+        print("   - ¿Los clientes recomiendan el producto?")
+
+        print("\n📝 EJEMPLOS para el CLASIFICADOR DE SENTIMIENTOS:")
+        print("   - 'This product is amazing! I love it!' → POSITIVO")
+        print("   - 'The quality is terrible, I regret buying it' → NEGATIVO")
+        print("   - 'Good value for money, I recommend it' → POSITIVO")
+        print("   - 'The package arrived damaged and the product was stale' → NEGATIVO")
+
+    elif opcion == "4":
+        print("\n👋 ¡Gracias por usar el sistema de agentes!")
+        print("✅ PROYECTO COMPLETADO")
+        break
+
+    else:
+        print("\n❌ Opción no válida. Por favor elige 1, 2, 3 o 4.")
