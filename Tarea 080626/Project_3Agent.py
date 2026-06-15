@@ -176,3 +176,141 @@ class AgenteNormalizador:
 # Ejecutar Agente 1
 agente1 = AgenteNormalizador(df_original, n_muestra=N_MUESTRA_DATASET)
 dataset_limpio = agente1.ejecutar()
+
+"""BLOQUE 6: PREPARAR DATOS PARA MODELOS"""
+
+X = dataset_limpio["CleanedReview"].values
+y = dataset_limpio["Sentiment"].values
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
+)
+
+print(f"📊 Datos de entrenamiento: {len(X_train)}")
+print(f"📊 Datos de prueba: {len(X_test)}")
+
+# Tokenización para LSTM
+tokenizer = Tokenizer(num_words=MAX_PALABRAS, oov_token='<OOV>')
+tokenizer.fit_on_texts(X_train)
+
+X_train_seq = tokenizer.texts_to_sequences(X_train)
+X_test_seq = tokenizer.texts_to_sequences(X_test)
+
+X_train_pad = pad_sequences(X_train_seq, maxlen=MAX_LONGITUD, padding='post', truncating='post')
+X_test_pad = pad_sequences(X_test_seq, maxlen=MAX_LONGITUD, padding='post', truncating='post')
+
+print(f"✅ Embeddings configurados")
+print(f"   Vocabulario tamaño: {len(tokenizer.word_index)}")
+
+"""BLOQUE 7: AGENTE 2 - COMPARAR MODELOS Y ELEGIR EL MEJOR"""
+
+class AgenteComparador:
+    def __init__(self, X_train, X_test, y_train, y_test, X_train_pad, X_test_pad):
+        self.X_train = X_train
+        self.X_test = X_test
+        self.y_train = y_train
+        self.y_test = y_test
+        self.X_train_pad = X_train_pad
+        self.X_test_pad = X_test_pad
+        self.resultados = {}
+        self.mejor_nombre = None
+        self.mejor_f1 = 0
+
+    def modelo_regresion_logistica(self):
+        print("\n📊 [1/3] REGRESIÓN LOGÍSTICA...")
+        vectorizer = TfidfVectorizer(max_features=5000)
+        X_train_vec = vectorizer.fit_transform(self.X_train)
+        X_test_vec = vectorizer.transform(self.X_test)
+
+        modelo = LogisticRegression(max_iter=1000, random_state=RANDOM_STATE)
+        modelo.fit(X_train_vec, self.y_train)
+        y_pred = modelo.predict(X_test_vec)
+
+        metricas = {
+            "accuracy": accuracy_score(self.y_test, y_pred),
+            "precision": precision_score(self.y_test, y_pred),
+            "recall": recall_score(self.y_test, y_pred),
+            "f1": f1_score(self.y_test, y_pred)
+        }
+        print(f"   Accuracy: {metricas['accuracy']:.4f}, F1: {metricas['f1']:.4f}")
+        self.resultados["Regresión Logística"] = {"metricas": metricas}
+        return metricas
+
+    def modelo_lstm(self):
+        print("\n🧠 [2/3] LSTM...")
+        model = Sequential([
+            Embedding(MAX_PALABRAS, 128, input_length=MAX_LONGITUD),
+            LSTM(64, dropout=0.2),
+            Dense(32, activation='relu'),
+            Dropout(0.3),
+            Dense(1, activation='sigmoid')
+        ])
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        model.fit(self.X_train_pad, self.y_train, epochs=EPOCAS_LSTM, batch_size=64, validation_split=0.2, verbose=0)
+
+        y_pred_proba = model.predict(self.X_test_pad, verbose=0)
+        y_pred = (y_pred_proba > 0.5).astype(int).flatten()
+
+        metricas = {
+            "accuracy": accuracy_score(self.y_test, y_pred),
+            "precision": precision_score(self.y_test, y_pred),
+            "recall": recall_score(self.y_test, y_pred),
+            "f1": f1_score(self.y_test, y_pred)
+        }
+        print(f"   Accuracy: {metricas['accuracy']:.4f}, F1: {metricas['f1']:.4f}")
+        self.resultados["LSTM"] = {"metricas": metricas}
+        return metricas
+
+    def modelo_distilbert(self):
+        print("\n🤖 [3/3] DISTILBERT...")
+        clasificador = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+
+        n_muestra = min(100, len(self.X_test))
+        textos = self.X_test[:n_muestra].tolist()
+        y_test_muestra = self.y_test[:n_muestra]
+
+        predicciones = []
+        for texto in textos:
+            try:
+                resultado = clasificador(texto[:512])[0]
+                pred = 1 if resultado["label"] == "POSITIVE" else 0
+                predicciones.append(pred)
+            except:
+                predicciones.append(0)
+
+        metricas = {
+            "accuracy": accuracy_score(y_test_muestra, predicciones),
+            "precision": precision_score(y_test_muestra, predicciones, zero_division=0),
+            "recall": recall_score(y_test_muestra, predicciones, zero_division=0),
+            "f1": f1_score(y_test_muestra, predicciones, zero_division=0)
+        }
+        print(f"   Accuracy: {metricas['accuracy']:.4f}, F1: {metricas['f1']:.4f}")
+        self.resultados["DistilBERT"] = {"metricas": metricas}
+        return metricas
+
+    def comparar_y_seleccionar(self):
+        print("\n🏆 COMPARANDO MODELOS...")
+        self.modelo_regresion_logistica()
+        self.modelo_lstm()
+        self.modelo_distilbert()
+
+        print("\n📊 TABLA COMPARATIVA:")
+        print("-" * 60)
+        print(f"{'Modelo':<20} {'Accuracy':<12} {'F1-Score':<12}")
+        print("-" * 60)
+
+        for nombre, datos in self.resultados.items():
+            m = datos["metricas"]
+            print(f"{nombre:<20} {m['accuracy']:.4f}       {m['f1']:.4f}")
+            if m['f1'] > self.mejor_f1:
+                self.mejor_f1 = m['f1']
+                self.mejor_nombre = nombre
+                self.mejores_metricas = m
+
+        print("-" * 60)
+        print(f"\n🏆 MEJOR MODELO: {self.mejor_nombre} (F1={self.mejor_f1:.4f})")
+        return self.mejor_nombre, self.mejores_metricas
+
+# Ejecutar Agente 2
+agente2 = AgenteComparador(X_train, X_test, y_train, y_test, X_train_pad, X_test_pad)
+mejor_modelo, mejores_metricas = agente2.comparar_y_seleccionar()
